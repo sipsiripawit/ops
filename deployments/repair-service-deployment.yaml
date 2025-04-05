@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: repair-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: repair-service
+  template:
+    metadata:
+      labels:
+        app: repair-service
+    spec:
+      containers:
+        - name: repair-service
+          image: repair-service:latest
+          ports:
+            - containerPort: 8084
+          envFrom:
+            - configMapRef:
+                name: system-config
+            - secretRef:
+                name: system-secrets

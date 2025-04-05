@@ -1,0 +1,23 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+rule_files:
+  - "alert.rules"
+
+scrape_configs:
+  - job_name: 'kubernetes-nodes'
+    kubernetes_sd_configs:
+      - role: node
+  - job_name: 'kubernetes-pods'
+    kubernetes_sd_configs:
+      - role: pod
+  - job_name: 'auth-service'
+    static_configs:
+      - targets: ['auth-service:8081']
+  - job_name: 'inventory-service'
+    static_configs:
+      - targets: ['inventory-service:8082']
+  - job_name: 'api-gateway'
+    static_configs:
+      - targets: ['api-gateway:8080']
