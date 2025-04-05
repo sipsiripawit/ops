@@ -1,0 +1,47 @@
+server:
+  port: 8100
+
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/ops?currentSchema=audit
+    username: ops
+    password: ops
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: true
+
+flyway:
+  enabled: true
+  schemas: audit
+  locations: classpath:db/migration
+
+logging:
+  level:
+    root: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus
+  endpoint:
+    health:
+      show-details: always
+
+resilience4j.circuitbreaker:
+  instances:
+    auditLogServiceCircuitBreaker:
+      slidingWindowSize: 10
+      failureRateThreshold: 50
+      permittedNumberOfCallsInHalfOpenState: 3
+
+# Kafka configuration (if needed)
+kafka:
+  bootstrap-servers: localhost:9092
+
+# RabbitMQ configuration (if needed)
+rabbitmq:
+  host: localhost
+  queue: audit-log-queue

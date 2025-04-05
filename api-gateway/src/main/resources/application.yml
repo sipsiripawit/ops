@@ -1,0 +1,58 @@
+server:
+  port: 8080
+
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: auth-service
+          uri: http://auth-service:8081
+          predicates:
+            - Path=/auth/**
+        - id: inventory-service
+          uri: http://inventory-service:8082
+          predicates:
+            - Path=/inventory/**
+        - id: vehicle-service
+          uri: http://vehicle-service:8083
+          predicates:
+            - Path=/vehicle/**
+        - id: repair-service
+          uri: http://repair-service:8084
+          predicates:
+            - Path=/repair/**
+        - id: workflow-service
+          uri: http://workflow-service:8085
+          predicates:
+            - Path=/workflow/**
+        - id: ocr-service
+          uri: http://ocr-service:8000
+          predicates:
+            - Path=/ocr/**
+        - id: user-service
+          uri: http://user-service:8086
+          predicates:
+            - Path=/user/**
+        - id: notification-service
+          uri: http://notification-service:8090
+          predicates:
+            - Path=/notifications/**
+
+jwt:
+  secret: Q2POR7Mf/jft9Ul32R7jvtjylaSNQ+RM5UqlHT808okmOydt7RW9rDSO3RwXhKnQtja8ZZgI5Y+xd+aIVg5vOQ==
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus
+  endpoint:
+    health:
+      show-details: always
+
+resilience4j.circuitbreaker:
+  instances:
+    apiGatewayCircuitBreaker:
+      slidingWindowSize: 10
+      failureRateThreshold: 50
+      permittedNumberOfCallsInHalfOpenState: 3

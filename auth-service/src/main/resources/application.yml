@@ -1,0 +1,43 @@
+server:
+  port: 8081
+
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/ops?currentSchema=auth
+    username: ops
+    password: ops
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: true
+
+flyway:
+  enabled: true
+  schemas: auth
+  locations: classpath:db/migration
+
+jwt:
+  secret: Q2POR7Mf/jft9Ul32R7jvtjylaSNQ+RM5UqlHT808okmOydt7RW9rDSO3RwXhKnQtja8ZZgI5Y+xd+aIVg5vOQ==
+  expirationMs: 900000         # 15 minutes
+  refreshExpirationMs: 604800000 # 7 days
+
+logging:
+  level:
+    root: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus
+  endpoint:
+    health:
+      show-details: always
+
+resilience4j.circuitbreaker:
+  instances:
+    authServiceCircuitBreaker:
+      slidingWindowSize: 10
+      failureRateThreshold: 50
+      permittedNumberOfCallsInHalfOpenState: 3
