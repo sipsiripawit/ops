@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    --foreground-rgb: 0, 0, 0;
+    --background-rgb: 255, 255, 255;
+    --primary-color: #050A30;
+    --secondary-color: #0A1857;
+    --accent-color: #E50012;
+}
+
+body {
+    color: rgb(var(--foreground-rgb));
+    background: rgb(var(--background-rgb));
+}
+
+/* ปรับแต่ง Form elements */
+input:focus, select:focus, textarea:focus {
+    @apply outline-none ring-2 ring-blue-500;
+}
+
+/* Custom Checkbox */
+input[type="checkbox"] {
+    @apply rounded border-gray-300 text-blue-600 focus:ring-blue-500;
+}
+
+/* Button styles */
+.btn {
+    @apply px-4 py-2 rounded-md transition-colors duration-200;
+}
+
+.btn-primary {
+    @apply bg-blue-900 text-white hover:bg-blue-800 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+}
+
+.btn-secondary {
+    @apply bg-gray-200 text-gray-800 hover:bg-gray-300 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2;
+}
+
+/* Form field styles */
+.form-input {
+    @apply w-full px-3 py-2 border border-gray-300 rounded-md;
+}
+
+.form-label {
+    @apply block text-sm font-medium mb-2;
+}
+
+.form-error {
+    @apply text-red-500 text-sm mt-1;
+}
+
+/* Animation for loading state */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
