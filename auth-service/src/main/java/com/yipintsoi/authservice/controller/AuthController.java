@@ -2,12 +2,12 @@ package com.yipintsoi.authservice.controller;
 
 import com.yipintsoi.authservice.common.Constants;
 import com.yipintsoi.authservice.common.Utils;
-import com.yipintsoi.authservice.dto.auth.ForgotPasswordRequest;
-import com.yipintsoi.authservice.dto.auth.LoginRequest;
-import com.yipintsoi.authservice.dto.auth.LoginResponse;
-import com.yipintsoi.authservice.dto.auth.RefreshTokenRequest;
-import com.yipintsoi.authservice.dto.auth.ResetPasswordRequest;
-import com.yipintsoi.authservice.dto.user.UserDTO;
+import com.yipintsoi.authservice.domain.dto.LoginRequest;
+import com.yipintsoi.authservice.domain.dto.LoginResponse;
+import com.yipintsoi.authservice.domain.dto.RefreshTokenRequest;
+import com.yipintsoi.authservice.domain.dto.UserDTO;
+import com.yipintsoi.authservice.domain.dto.ForgotPasswordRequest;
+import com.yipintsoi.authservice.domain.dto.ResetPasswordRequest;
 import com.yipintsoi.authservice.response.ApiResponse;
 import com.yipintsoi.authservice.service.AuthService;
 import com.yipintsoi.authservice.service.UserService;

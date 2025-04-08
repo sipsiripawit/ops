@@ -1,15 +1,15 @@
 package com.yipintsoi.authservice.service.impl;
 
 import com.yipintsoi.authservice.common.Constants;
-import com.yipintsoi.authservice.dto.auth.LoginRequest;
-import com.yipintsoi.authservice.dto.auth.LoginResponse;
-import com.yipintsoi.authservice.dto.auth.RefreshTokenRequest;
-import com.yipintsoi.authservice.dto.user.UserDTO;
-import com.yipintsoi.authservice.entity.User;
-import com.yipintsoi.authservice.entity.UserSession;
+import com.yipintsoi.authservice.domain.dto.LoginRequest;
+import com.yipintsoi.authservice.domain.dto.LoginResponse;
+import com.yipintsoi.authservice.domain.dto.RefreshTokenRequest;
+import com.yipintsoi.authservice.domain.dto.UserDTO;
+import com.yipintsoi.authservice.domain.entity.User;
+import com.yipintsoi.authservice.domain.entity.UserSession;
+import com.yipintsoi.authservice.domain.mapper.UserMapper;
 import com.yipintsoi.authservice.exception.AuthException;
 import com.yipintsoi.authservice.exception.ResourceNotFoundException;
-import com.yipintsoi.authservice.mapper.UserMapper;
 import com.yipintsoi.authservice.repository.UserRepository;
 import com.yipintsoi.authservice.repository.UserSessionRepository;
 import com.yipintsoi.authservice.service.AuthService;
@@ -28,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -54,10 +55,10 @@ public class AuthServiceImpl implements AuthService {
     public LoginResponse login(LoginRequest request) {
         try {
             log.debug("Authenticating user {}", request.getUsername());
-            
+
             // Authenticate user
             Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
+                    new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
             );
 
             User user = userRepository.findByUsername(request.getUsername())
@@ -80,11 +81,11 @@ public class AuthServiceImpl implements AuthService {
             // Generate new tokens
             String accessToken = jwtTokenProvider.generateToken(user.getUsername());
             String refreshToken = null;
-            
+
             // Only generate refresh token if rememberMe is true
             if (request.isRememberMe()) {
                 refreshToken = jwtTokenProvider.generateRefreshToken(user.getUsername());
-                
+
                 // Save new session
                 UserSession newSession = UserSession.builder()
                         .user(user)
@@ -96,7 +97,7 @@ public class AuthServiceImpl implements AuthService {
                         .createdDate(Instant.now())
                         .build();
                 userSessionRepository.save(newSession);
-                
+
                 log.debug("Created new session with refresh token for user {}", user.getUsername());
             }
 
@@ -134,7 +135,7 @@ public class AuthServiceImpl implements AuthService {
             session.setUpdatedDate(Instant.now());
             userSessionRepository.save(session);
         }
-        
+
         log.debug("Successfully logged out user {}", username);
     }
 
@@ -144,7 +145,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public LoginResponse refreshToken(RefreshTokenRequest request) {
         String refreshToken = request.getRefreshToken();
-        
+
         if (!jwtTokenProvider.validateToken(refreshToken)) {
             throw new AuthException(Constants.INVALID_TOKEN);
         }
@@ -153,8 +154,12 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException(Constants.USER_NOT_FOUND));
 
-        UserSession session = userSessionRepository.findByRefreshTokenAndActive(refreshToken, true)
-                .orElseThrow(() -> new AuthException(Constants.SESSION_NOT_FOUND));
+        Optional<UserSession> sessionOpt = userSessionRepository.findByRefreshToken(refreshToken);
+        if (sessionOpt.isEmpty() || !sessionOpt.get().getActive()) {
+            throw new AuthException(Constants.SESSION_NOT_FOUND);
+        }
+
+        UserSession session = sessionOpt.get();
 
         if (session.getExpiresAt().isBefore(Instant.now())) {
             session.setActive(false);
@@ -185,7 +190,7 @@ public class AuthServiceImpl implements AuthService {
                 .createdDate(Instant.now())
                 .build();
         userSessionRepository.save(newSession);
-        
+
         log.debug("Successfully refreshed token for user {}", username);
 
         return LoginResponse.builder()
@@ -225,17 +230,17 @@ public class AuthServiceImpl implements AuthService {
 
         // Generate reset token
         String resetToken = UUID.randomUUID().toString();
-        
+
         // In real world application, we would save this token to database
         // and associate it with the user, along with an expiration time
-        
+
         // For demonstration, we'll just log it
         log.debug("Generated reset token for user {}: {}", username, resetToken);
 
         // Send reset email
         String resetLink = "https://your-app.com/reset-password?token=" + resetToken;
         emailService.sendPasswordResetEmail(user.getEmail(), resetLink);
-        
+
         log.info("Password reset initiated for user: {}", username);
     }
 
@@ -248,18 +253,22 @@ public class AuthServiceImpl implements AuthService {
         // 1. Validate the token
         // 2. Check if it's not expired
         // 3. Find the user associated with this token
-        
+
         // For demonstration, we'll just log it
         log.debug("Resetting password with token: {}", token);
-        
-        // Instead of looking up a real user, we'll create a mock one
-        User user = new User(); // This would be replaced with actual user lookup
-        
+
+        // ในการใช้งานจริงควรดึงข้อมูลจากฐานข้อมูล
+        // ในตัวอย่างนี้แค่จำลองว่าได้ค้นหาผู้ใช้จาก token แล้ว
+        User mockUser = new User();
+        mockUser.setUsername("mock.user");
+        mockUser.setEmail("mock@example.com");
+        mockUser.setPassword("oldPassword");
+
         // Set the new password
-        user.setPassword(passwordEncoder.encode(newPassword));
-        userRepository.save(user);
-        
-        log.info("Password reset completed successfully");
+        mockUser.setPassword(passwordEncoder.encode(newPassword));
+        // userRepository.save(mockUser); // ในการใช้งานจริงต้อง save
+
+        log.info("Password reset completed successfully for mock user");
     }
 
     /**

@@ -1,6 +1,6 @@
 package com.yipintsoi.authservice.service;
 
-import com.yipintsoi.authservice.domain.user.dto.LoginRequest;
+import com.yipintsoi.authservice.domain.dto.LoginRequest;
 import com.yipintsoi.authservice.exception.CustomException;
 import com.yipintsoi.authservice.repository.UserRepository;
 import com.yipintsoi.authservice.repository.UserSessionRepository;

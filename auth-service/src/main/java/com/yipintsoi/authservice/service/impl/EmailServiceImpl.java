@@ -1,6 +1,8 @@
 package com.yipintsoi.authservice.service.impl;
 
 import com.yipintsoi.authservice.service.EmailService;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,8 +13,6 @@ import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
-import javax.mail.MessagingException;
-import javax.mail.internet.MimeMessage;
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -25,11 +25,11 @@ public class EmailServiceImpl implements EmailService {
 
     private final JavaMailSender mailSender;
     private final TemplateEngine templateEngine;
-    
-    @Value("${spring.mail.username}")
+
+    @Value("${spring.mail.username:noreply@example.com}")
     private String fromEmail;
-    
-    @Value("${app.name}")
+
+    @Value("${app.name:YIP E-INVENTORY}")
     private String appName;
 
     /**
@@ -39,31 +39,35 @@ public class EmailServiceImpl implements EmailService {
     public void sendPasswordResetEmail(String to, String resetLink) {
         try {
             log.debug("Sending password reset email to: {}", to);
-            
+
             // สร้าง Context สำหรับเทมเพลต
             Context context = new Context();
             context.setVariable("resetLink", resetLink);
             context.setVariable("appName", appName);
-            
+
             // สร้างเนื้อหาอีเมลจากเทมเพลต
             String htmlContent = templateEngine.process("password-reset-email", context);
-            
+
             // สร้างและส่งอีเมล
             MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, 
-                    MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, 
+            MimeMessageHelper helper = new MimeMessageHelper(message,
+                    MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED,
                     StandardCharsets.UTF_8.name());
-            
+
             helper.setFrom(fromEmail);
             helper.setTo(to);
             helper.setSubject(appName + " - รีเซ็ตรหัสผ่าน");
             helper.setText(htmlContent, true);
-            
+
             mailSender.send(message);
-            
+
             log.info("Password reset email sent to: {}", to);
         } catch (MessagingException e) {
             log.error("Failed to send password reset email to: {}", to, e);
+            // หากเกิดข้อผิดพลาดในการส่งอีเมล ให้ลองส่งแบบ plain text
+            sendSimpleEmail(to,
+                    appName + " - รีเซ็ตรหัสผ่าน",
+                    "คลิกที่ลิงก์นี้เพื่อรีเซ็ตรหัสผ่านของคุณ: " + resetLink);
         }
     }
 
@@ -74,34 +78,38 @@ public class EmailServiceImpl implements EmailService {
     public void sendRegistrationVerificationEmail(String to, String verificationLink) {
         try {
             log.debug("Sending registration verification email to: {}", to);
-            
+
             // สร้าง Context สำหรับเทมเพลต
             Context context = new Context();
             context.setVariable("verificationLink", verificationLink);
             context.setVariable("appName", appName);
-            
+
             // สร้างเนื้อหาอีเมลจากเทมเพลต
             String htmlContent = templateEngine.process("registration-verification-email", context);
-            
+
             // สร้างและส่งอีเมล
             MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, 
-                    MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, 
+            MimeMessageHelper helper = new MimeMessageHelper(message,
+                    MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED,
                     StandardCharsets.UTF_8.name());
-            
+
             helper.setFrom(fromEmail);
             helper.setTo(to);
             helper.setSubject(appName + " - ยืนยันการลงทะเบียน");
             helper.setText(htmlContent, true);
-            
+
             mailSender.send(message);
-            
+
             log.info("Registration verification email sent to: {}", to);
         } catch (MessagingException e) {
             log.error("Failed to send registration verification email to: {}", to, e);
+            // หากเกิดข้อผิดพลาดในการส่งอีเมล ให้ลองส่งแบบ plain text
+            sendSimpleEmail(to,
+                    appName + " - ยืนยันการลงทะเบียน",
+                    "คลิกที่ลิงก์นี้เพื่อยืนยันการลงทะเบียนของคุณ: " + verificationLink);
         }
     }
-    
+
     /**
      * ส่งอีเมลแบบง่าย (ใช้สำหรับทดสอบหรือแบ็คอัพกรณีที่เทมเพลตมีปัญหา)
      * @param to อีเมลปลายทาง
@@ -115,9 +123,9 @@ public class EmailServiceImpl implements EmailService {
             message.setTo(to);
             message.setSubject(subject);
             message.setText(text);
-            
+
             mailSender.send(message);
-            
+
             log.info("Simple email sent to: {}", to);
         } catch (Exception e) {
             log.error("Failed to send simple email to: {}", to, e);
