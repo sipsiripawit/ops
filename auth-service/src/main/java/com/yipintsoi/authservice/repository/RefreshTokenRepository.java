@@ -1,6 +1,6 @@
 package com.yipintsoi.authservice.repository;
 
-import com.yipintsoi.authservice.model.RefreshToken;
+import com.yipintsoi.authservice.domain.entity.RefreshToken;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
