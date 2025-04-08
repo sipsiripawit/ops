@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation';
 import { authService } from '@/services/auth-service';
 
 interface User {
-    id: string;
+    id: number;
     username: string;
-    role: string;
+    role: string[];
     permissions: string[];
 }
 
@@ -32,8 +32,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         try {
             setIsLoading(true);
             // เรียกใช้ API เพื่อดึงข้อมูลผู้ใช้จาก token
-            const userData = await authService.getProfile();
-            setUser(userData);
+            const response = await authService.getProfile();
+
+            if (response.success) {
+                setUser(response.data);
+            } else {
+                setUser(null);
+                // ลบ Token ใน localStorage หากมีข้อผิดพลาด
+                localStorage.removeItem('accessToken');
+                localStorage.removeItem('refreshToken');
+            }
         } catch (error) {
             console.error('Error fetching user:', error);
             setUser(null);
@@ -60,17 +68,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setIsLoading(true);
         try {
             // เรียกใช้ API สำหรับ Login
-            const { accessToken, refreshToken, user } = await authService.login(username, password);
+            const response = await authService.login(username, password, rememberMe);
 
-            // บันทึก Token ใน localStorage
-            localStorage.setItem('accessToken', accessToken);
+            if (response.success) {
+                const { accessToken, refreshToken, user } = response.data;
 
-            // บันทึก Refresh Token เฉพาะเมื่อ rememberMe = true
-            if (rememberMe) {
-                localStorage.setItem('refreshToken', refreshToken);
+                // บันทึก Token ใน localStorage
+                localStorage.setItem('accessToken', accessToken);
+
+                // บันทึก Refresh Token เฉพาะเมื่อ rememberMe = true
+                if (rememberMe) {
+                    localStorage.setItem('refreshToken', refreshToken);
+                }
+
+                setUser(user);
+            } else {
+                throw new Error(response.message);
             }
-
-            setUser(user);
         } catch (error) {
             console.error('Login error:', error);
             throw error;
@@ -102,10 +116,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
 
         try {
-            const { accessToken, refreshToken: newRefreshToken } = await authService.refreshToken(storedRefreshToken);
-            localStorage.setItem('accessToken', accessToken);
-            localStorage.setItem('refreshToken', newRefreshToken);
-            return accessToken;
+            const response = await authService.refreshToken(storedRefreshToken);
+
+            if (response.success) {
+                const { accessToken, refreshToken } = response.data;
+                localStorage.setItem('accessToken', accessToken);
+                localStorage.setItem('refreshToken', refreshToken);
+                return accessToken;
+            } else {
+                throw new Error(response.message);
+            }
         } catch (error) {
             console.error('Token refresh error:', error);
             logout();
@@ -116,17 +136,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return (
         <AuthContext.Provider
             value={{
-        user,
-            isAuthenticated: !!user,
-            isLoading,
-            login,
-            logout,
-            refreshToken,
-    }}
->
-    {children}
-    </AuthContext.Provider>
-);
+                user,
+                isAuthenticated: !!user,
+                isLoading,
+                login,
+                logout,
+                refreshToken,
+            }}
+        >
+            {children}
+        </AuthContext.Provider>
+    );
 };
 
 export const useAuth = () => {
