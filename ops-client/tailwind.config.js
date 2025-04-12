@@ -12,6 +12,7 @@ module.exports = {
                     900: '#050A30', // Dark blue background
                     800: '#0A1857', // Slightly lighter blue
                     700: '#1E3A8A',
+                    500: '#3b82f6'
                 },
                 red: {
                     600: '#E50012', // YIP logo color

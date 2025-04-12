@@ -1,13 +1,18 @@
-import './globals.css';
-import { Inter } from 'next/font/google';
+import '@styles/globals.css';
+import { Noto_Sans_Thai } from 'next/font/google';
 import { AuthProvider } from '@/hooks/useAuth';
 
-const inter = Inter({ subsets: ['latin', 'thai'] });
 
 export const metadata = {
     title: 'YIP E-INVENTORY',
     description: 'ระบบจัดการคลังสินค้าและทรัพยากร',
 };
+
+const thaiFont = Noto_Sans_Thai({
+    weight: ['400', '700'], // เลือกน้ำหนักฟอนต์ที่ต้องการ
+    subsets: ['thai'],
+    display: 'swap',
+});
 
 export default function RootLayout({
                                        children,
@@ -16,7 +21,7 @@ export default function RootLayout({
 }) {
     return (
         <html lang="th">
-        <body className={inter.className}>
+        <body className={thaiFont.className}>
         <AuthProvider>
             {children}
         </AuthProvider>
