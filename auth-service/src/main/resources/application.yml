@@ -3,7 +3,7 @@ server:
 
 spring:
   datasource:
-    url: jdbc:postgresql://postgres:5432/ops?currentSchema=auth
+    url: jdbc:postgresql://localhost:5432/ops?currentSchema=auth
     username: ops
     password: ops
     driver-class-name: org.postgresql.Driver
@@ -11,6 +11,16 @@ spring:
     hibernate:
       ddl-auto: none
     show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  # Flyway configuration
+  flyway:
+    enabled: true
+    schemas: auth
+    locations: classpath:db/migration
+    baseline-on-migrate: true
 
   # การตั้งค่าสำหรับการส่งอีเมล
   mail:
@@ -36,11 +46,6 @@ spring:
     servlet:
       content-type: text/html
 
-flyway:
-  enabled: true
-  schemas: auth
-  locations: classpath:db/migration
-
 jwt:
   secret: Q2POR7Mf/jft9Ul32R7jvtjylaSNQ+RM5UqlHT808okmOydt7RW9rDSO3RwXhKnQtja8ZZgI5Y+xd+aIVg5vOQ==
   expirationMs: 900000         # 15 minutes
@@ -56,6 +61,7 @@ logging:
   level:
     root: INFO
     com.yipintsoi: DEBUG
+    org.flywaydb: DEBUG
 
 management:
   endpoints:

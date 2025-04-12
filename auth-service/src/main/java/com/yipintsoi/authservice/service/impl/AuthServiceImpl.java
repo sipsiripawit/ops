@@ -15,8 +15,11 @@ import com.yipintsoi.authservice.repository.UserSessionRepository;
 import com.yipintsoi.authservice.service.AuthService;
 import com.yipintsoi.authservice.service.EmailService;
 import com.yipintsoi.authservice.service.JwtTokenProvider;
+import com.yipintsoi.authservice.service.SingleSessionService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -25,6 +28,8 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.Instant;
 import java.util.List;
@@ -32,7 +37,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Implementation ของ AuthService
+ * Implementation ของ AuthService ที่รองรับ Single Session Login
  */
 @Slf4j
 @Service
@@ -47,16 +52,21 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
     private final EmailService emailService;
+    private final SingleSessionService singleSessionService;
+
+    @Value("${app.force-single-session:true}")
+    private boolean forceSingleSession;
 
     /**
-     * {@inheritDoc}
+     * ทำการเข้าสู่ระบบสำหรับผู้ใช้
+     * รองรับการบังคับใช้ Single Session ถ้าตั้งค่าเป็น true
      */
     @Override
     public LoginResponse login(LoginRequest request) {
         try {
-            log.debug("Authenticating user {}", request.getUsername());
+            log.debug("กำลังตรวจสอบผู้ใช้ {}", request.getUsername());
 
-            // Authenticate user
+            // ตรวจสอบสิทธิ์ผู้ใช้
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
             );
@@ -68,37 +78,23 @@ public class AuthServiceImpl implements AuthService {
                 throw new AuthException(Constants.ACCOUNT_DISABLED);
             }
 
-            // Invalidate previous active sessions for Single Active Session policy
-            List<UserSession> activeSessions = userSessionRepository.findByUserAndActive(user, true);
-            for (UserSession session : activeSessions) {
-                log.debug("Invalidating previous session for user {}", user.getUsername());
-                session.setActive(false);
-                session.setUpdatedBy(Constants.SYSTEM_USER);
-                session.setUpdatedDate(Instant.now());
-                userSessionRepository.save(session);
-            }
+            HttpServletRequest httpRequest = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
 
-            // Generate new tokens
+            // สร้าง token ใหม่
             String accessToken = jwtTokenProvider.generateToken(user.getUsername());
             String refreshToken = null;
 
-            // Only generate refresh token if rememberMe is true
+            // สร้าง refresh token ถ้าผู้ใช้เลือก "จำฉันไว้"
             if (request.isRememberMe()) {
                 refreshToken = jwtTokenProvider.generateRefreshToken(user.getUsername());
-
-                // Save new session
-                UserSession newSession = UserSession.builder()
-                        .user(user)
-                        .refreshToken(refreshToken)
-                        .ipAddress("N/A") // In real system, we would get this from the request
-                        .active(true)
-                        .expiresAt(Instant.now().plusMillis(jwtTokenProvider.getRefreshExpirationMs()))
-                        .createdBy(Constants.SYSTEM_USER)
-                        .createdDate(Instant.now())
-                        .build();
-                userSessionRepository.save(newSession);
-
-                log.debug("Created new session with refresh token for user {}", user.getUsername());
+                
+                // สร้าง session ใหม่ (จะทำการยกเลิก session เก่าถ้าเปิดใช้ single session)
+                singleSessionService.createSession(user, refreshToken, httpRequest);
+                
+                log.debug("สร้าง session ใหม่พร้อม refresh token สำหรับผู้ใช้ {}", user.getUsername());
+            } else if (forceSingleSession) {
+                // ถ้าไม่ได้เลือก "จำฉันไว้" แต่เปิดใช้ single session ให้ยกเลิก session เก่าทั้งหมด
+                singleSessionService.enforceActiveSingleSession(user, httpRequest);
             }
 
             return LoginResponse.builder()
@@ -106,14 +102,16 @@ public class AuthServiceImpl implements AuthService {
                     .refreshToken(refreshToken)
                     .tokenType("Bearer")
                     .build();
+            
         } catch (AuthenticationException e) {
-            log.error("Authentication failed for user {}: {}", request.getUsername(), e.getMessage());
+            log.error("การตรวจสอบสิทธิ์ผู้ใช้ {} ล้มเหลว: {}", request.getUsername(), e.getMessage());
             throw new AuthException(Constants.INVALID_CREDENTIALS, HttpStatus.UNAUTHORIZED);
         }
     }
 
     /**
-     * {@inheritDoc}
+     * ทำการออกจากระบบสำหรับผู้ใช้
+     * ยกเลิก session ทั้งหมดของผู้ใช้
      */
     @Override
     public void logout(String token) {
@@ -125,9 +123,9 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException(Constants.USER_NOT_FOUND));
 
-        log.debug("Logging out user {}", username);
+        log.debug("กำลังออกจากระบบผู้ใช้ {}", username);
 
-        // Invalidate all active sessions
+        // ยกเลิก session ทั้งหมดของผู้ใช้
         List<UserSession> activeSessions = userSessionRepository.findByUserAndActive(user, true);
         for (UserSession session : activeSessions) {
             session.setActive(false);
@@ -136,11 +134,12 @@ public class AuthServiceImpl implements AuthService {
             userSessionRepository.save(session);
         }
 
-        log.debug("Successfully logged out user {}", username);
+        log.debug("ออกจากระบบผู้ใช้ {} สำเร็จ", username);
     }
 
     /**
-     * {@inheritDoc}
+     * รีเฟรช JWT token
+     * อัปเดตเวลาใช้งานล่าสุดของ session เพื่อรักษาสถานะ active
      */
     @Override
     public LoginResponse refreshToken(RefreshTokenRequest request) {
@@ -167,31 +166,26 @@ public class AuthServiceImpl implements AuthService {
             throw new AuthException(Constants.TOKEN_EXPIRED);
         }
 
-        log.debug("Refreshing token for user {}", username);
+        log.debug("กำลังรีเฟรช token สำหรับผู้ใช้ {}", username);
 
-        // Generate new tokens
+        // อัปเดตเวลาใช้งานล่าสุด
+        singleSessionService.updateLastActivityTimestamp(refreshToken);
+
+        // สร้าง token ใหม่
         String accessToken = jwtTokenProvider.generateToken(username);
         String newRefreshToken = jwtTokenProvider.generateRefreshToken(username);
 
-        // Invalidate old session
+        // ยกเลิก session เก่า
         session.setActive(false);
         session.setUpdatedBy(username);
         session.setUpdatedDate(Instant.now());
         userSessionRepository.save(session);
 
-        // Create new session
-        UserSession newSession = UserSession.builder()
-                .user(user)
-                .refreshToken(newRefreshToken)
-                .ipAddress(session.getIpAddress())
-                .active(true)
-                .expiresAt(Instant.now().plusMillis(jwtTokenProvider.getRefreshExpirationMs()))
-                .createdBy(username)
-                .createdDate(Instant.now())
-                .build();
-        userSessionRepository.save(newSession);
+        // สร้าง session ใหม่
+        HttpServletRequest httpRequest = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
+        singleSessionService.createSession(user, newRefreshToken, httpRequest);
 
-        log.debug("Successfully refreshed token for user {}", username);
+        log.debug("รีเฟรช token สำหรับผู้ใช้ {} สำเร็จ", username);
 
         return LoginResponse.builder()
                 .accessToken(accessToken)
@@ -201,7 +195,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     /**
-     * {@inheritDoc}
+     * ดึงข้อมูลโปรไฟล์ผู้ใช้จาก token
      */
     @Override
     public UserDTO getUserProfileFromToken(String token) {
@@ -217,7 +211,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     /**
-     * {@inheritDoc}
+     * เริ่มกระบวนการรีเซ็ตรหัสผ่าน
      */
     @Override
     public void initiatePasswordReset(String username) {
@@ -228,51 +222,42 @@ public class AuthServiceImpl implements AuthService {
             throw new AuthException(Constants.ACCOUNT_DISABLED);
         }
 
-        // Generate reset token
+        // สร้าง token สำหรับรีเซ็ตรหัสผ่าน
         String resetToken = UUID.randomUUID().toString();
 
-        // In real world application, we would save this token to database
-        // and associate it with the user, along with an expiration time
+        // ในระบบจริงควรบันทึก token นี้ลงฐานข้อมูลพร้อมกำหนดเวลาหมดอายุ
+        log.debug("สร้าง token สำหรับรีเซ็ตรหัสผ่านให้ผู้ใช้ {}: {}", username, resetToken);
 
-        // For demonstration, we'll just log it
-        log.debug("Generated reset token for user {}: {}", username, resetToken);
-
-        // Send reset email
-        String resetLink = "https://your-app.com/reset-password?token=" + resetToken;
+        // ส่งอีเมลรีเซ็ตรหัสผ่าน
+        String resetLink = "https://smartops.yipintsoi.com/reset-password?token=" + resetToken;
         emailService.sendPasswordResetEmail(user.getEmail(), resetLink);
 
-        log.info("Password reset initiated for user: {}", username);
+        log.info("เริ่มกระบวนการรีเซ็ตรหัสผ่านสำหรับผู้ใช้: {}", username);
     }
 
     /**
-     * {@inheritDoc}
+     * รีเซ็ตรหัสผ่าน
      */
     @Override
     public void resetPassword(String token, String newPassword) {
-        // In real world application, we would:
-        // 1. Validate the token
-        // 2. Check if it's not expired
-        // 3. Find the user associated with this token
+        // ในระบบจริงควรตรวจสอบ token จากฐานข้อมูล
+        log.debug("กำลังรีเซ็ตรหัสผ่านด้วย token: {}", token);
 
-        // For demonstration, we'll just log it
-        log.debug("Resetting password with token: {}", token);
-
-        // ในการใช้งานจริงควรดึงข้อมูลจากฐานข้อมูล
-        // ในตัวอย่างนี้แค่จำลองว่าได้ค้นหาผู้ใช้จาก token แล้ว
+        // จำลองการค้นหาผู้ใช้จาก token
         User mockUser = new User();
         mockUser.setUsername("mock.user");
         mockUser.setEmail("mock@example.com");
         mockUser.setPassword("oldPassword");
 
-        // Set the new password
+        // ตั้งรหัสผ่านใหม่
         mockUser.setPassword(passwordEncoder.encode(newPassword));
-        // userRepository.save(mockUser); // ในการใช้งานจริงต้อง save
+        // userRepository.save(mockUser); // ในระบบจริงต้อง save
 
-        log.info("Password reset completed successfully for mock user");
+        log.info("รีเซ็ตรหัสผ่านสำเร็จสำหรับผู้ใช้จำลอง");
     }
 
     /**
-     * {@inheritDoc}
+     * ตรวจสอบความถูกต้องของ token
      */
     @Override
     public boolean validateToken(String token) {
