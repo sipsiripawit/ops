@@ -4,17 +4,23 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@ConfigurationProperties(prefix = "jwt")
+@ConfigurationProperties(prefix = "app.jwt")
 public class JwtConfig {
     private String secret;
-    private long expirationMs;
-    private long refreshExpirationMs;
+    private long accessTokenExpirationMs;
+    private long refreshTokenExpirationMs;
 
     // Getters and Setters
     public String getSecret() { return secret; }
     public void setSecret(String secret) { this.secret = secret; }
-    public long getExpirationMs() { return expirationMs; }
-    public void setExpirationMs(long expirationMs) { this.expirationMs = expirationMs; }
-    public long getRefreshExpirationMs() { return refreshExpirationMs; }
-    public void setRefreshExpirationMs(long refreshExpirationMs) { this.refreshExpirationMs = refreshExpirationMs; }
+
+    public long getAccessTokenExpirationMs() { return accessTokenExpirationMs; }
+    public void setAccessTokenExpirationMs(long accessTokenExpirationMs) {
+        this.accessTokenExpirationMs = accessTokenExpirationMs;
+    }
+
+    public long getRefreshTokenExpirationMs() { return refreshTokenExpirationMs; }
+    public void setRefreshTokenExpirationMs(long refreshTokenExpirationMs) {
+        this.refreshTokenExpirationMs = refreshTokenExpirationMs;
+    }
 }

@@ -10,7 +10,6 @@ import java.util.Properties;
 
 @Configuration
 public class MailConfig {
-
     @Value("${spring.mail.host}")
     private String host;
 
@@ -29,9 +28,6 @@ public class MailConfig {
     @Value("${spring.mail.properties.mail.smtp.starttls.enable:true}")
     private String starttls;
 
-    /**
-     * สร้าง JavaMailSender สำหรับส่งอีเมล
-     */
     @Bean
     public JavaMailSender javaMailSender() {
         JavaMailSenderImpl mailSender = new JavaMailSenderImpl();

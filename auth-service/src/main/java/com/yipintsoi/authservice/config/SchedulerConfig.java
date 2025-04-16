@@ -3,9 +3,6 @@ package com.yipintsoi.authservice.config;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-/**
- * Configuration class เพื่อเปิดใช้งาน Scheduling ใน Spring Boot
- */
 @Configuration
 @EnableScheduling
 public class SchedulerConfig {

@@ -2,135 +2,99 @@ package com.yipintsoi.authservice.controller;
 
 import com.yipintsoi.authservice.common.Constants;
 import com.yipintsoi.authservice.common.Utils;
-import com.yipintsoi.authservice.domain.dto.LoginRequest;
-import com.yipintsoi.authservice.domain.dto.LoginResponse;
-import com.yipintsoi.authservice.domain.dto.RefreshTokenRequest;
-import com.yipintsoi.authservice.domain.dto.UserDTO;
-import com.yipintsoi.authservice.domain.dto.ForgotPasswordRequest;
-import com.yipintsoi.authservice.domain.dto.ResetPasswordRequest;
+import com.yipintsoi.authservice.domain.dto.*;
+import com.yipintsoi.authservice.exception.AuthException;
 import com.yipintsoi.authservice.response.ApiResponse;
-import com.yipintsoi.authservice.service.AuthService;
-import com.yipintsoi.authservice.service.UserService;
+import com.yipintsoi.authservice.service.TokenService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
-import java.util.Map;
-
-/**
- * Controller สำหรับจัดการการตรวจสอบตัวตนและการอนุญาต
- */
 @Slf4j
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
+@Tag(name = "Authentication", description = "Authentication API")
 public class AuthController {
 
-    private final AuthService authService;
-    private final UserService userService;
+    private final TokenService tokenService;
+    private final AuthenticationManager authenticationManager;
 
-    /**
-     * Endpoint สำหรับเข้าสู่ระบบ
-     * @param request ข้อมูลการล็อกอิน
-     * @return ข้อมูลการเข้าสู่ระบบที่ประกอบด้วย access token, refresh token และข้อมูลผู้ใช้
-     */
-    @PostMapping("/login")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> login(@Valid @RequestBody LoginRequest request) {
-        log.info("Login attempt for user: {}", request.getUsername());
+    @PostMapping("/token")
+    @Operation(summary = "Login to the system", description = "Authenticate user and get JWT token")
+    public ResponseEntity<ApiResponse<TokenResponse>> getToken(@Valid @RequestBody LoginRequest loginRequest) {
+        try {
+            log.info("Login attempt for user: {}", loginRequest.getUsername());
 
-        LoginResponse authResponse = authService.login(request);
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            loginRequest.getUsername(),
+                            loginRequest.getPassword()
+                    )
+            );
 
-        // ดึงข้อมูลผู้ใช้
-        UserDTO user = userService.getUserByUsername(request.getUsername());
+            TokenResponse tokenResponse = tokenService.createToken(authentication, loginRequest.isRememberMe());
 
-        // สร้างข้อมูลตอบกลับ
-        Map<String, Object> responseData = new HashMap<>();
-        responseData.put("accessToken", authResponse.getAccessToken());
-        responseData.put("refreshToken", authResponse.getRefreshToken());
-        responseData.put("user", user);
-
-        return ResponseEntity.ok(ApiResponse.success(Constants.LOGIN_SUCCESS, responseData));
+            return ResponseEntity.ok(
+                    ApiResponse.success(Constants.LOGIN_SUCCESS, tokenResponse)
+            );
+        } catch (BadCredentialsException e) {
+            log.error("Authentication failed for user: {}", loginRequest.getUsername());
+            throw new AuthException(Constants.INVALID_CREDENTIALS);
+        }
     }
 
-    /**
-     * Endpoint สำหรับออกจากระบบ
-     * @param authorizationHeader JWT token
-     * @return ข้อความยืนยันการออกจากระบบ
-     */
+    @PostMapping("/refresh")
+    @Operation(summary = "Refresh JWT token", description = "Get new JWT token using refresh token")
+    public ResponseEntity<ApiResponse<TokenResponse>> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
+        log.info("Token refresh request received");
+
+        TokenResponse tokenResponse = tokenService.refreshToken(request.getRefreshToken());
+
+        return ResponseEntity.ok(ApiResponse.success(Constants.TOKEN_REFRESH_SUCCESS, tokenResponse));
+    }
+
     @PostMapping("/logout")
-    public ResponseEntity<ApiResponse<Void>> logout(@RequestHeader("Authorization") String authorizationHeader) {
-        String token = Utils.extractTokenFromHeader(authorizationHeader);
+    @Operation(summary = "Logout from the system", description = "Invalidate current refresh token")
+    public ResponseEntity<ApiResponse<Void>> logout(@Valid @RequestBody LogoutRequest request) {
         log.info("Logout request received");
 
-        authService.logout(token);
+        tokenService.revokeToken(request.getRefreshToken());
 
         return ResponseEntity.ok(ApiResponse.success(Constants.LOGOUT_SUCCESS));
     }
 
-    /**
-     * Endpoint สำหรับรีเฟรช token
-     * @param request คำขอที่มี refresh token
-     * @return ชุดใหม่ของ token (access token และ refresh token)
-     */
-    @PostMapping("/refresh-token")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> refreshToken(
-            @Valid @RequestBody RefreshTokenRequest request) {
-        log.info("Token refresh request received");
-
-        LoginResponse authResponse = authService.refreshToken(request);
-
-        // สร้างข้อมูลตอบกลับ
-        Map<String, Object> responseData = new HashMap<>();
-        responseData.put("accessToken", authResponse.getAccessToken());
-        responseData.put("refreshToken", authResponse.getRefreshToken());
-
-        return ResponseEntity.ok(ApiResponse.success(Constants.TOKEN_REFRESH_SUCCESS, responseData));
-    }
-
-    /**
-     * Endpoint สำหรับดึงข้อมูลโปรไฟล์ผู้ใช้
-     * @param authorizationHeader JWT token
-     * @return ข้อมูลโปรไฟล์ผู้ใช้
-     */
-    @GetMapping("/profile")
-    public ResponseEntity<ApiResponse<UserDTO>> getProfile(
-            @RequestHeader("Authorization") String authorizationHeader) {
+    @PostMapping("/logout-all")
+    @Operation(summary = "Logout from all devices", description = "Invalidate all refresh tokens for the user")
+    public ResponseEntity<ApiResponse<Void>> logoutAll(@RequestHeader("Authorization") String authorizationHeader) {
         String token = Utils.extractTokenFromHeader(authorizationHeader);
-        log.info("Profile request received");
+        log.info("Logout all request received");
 
-        UserDTO user = authService.getUserProfileFromToken(token);
-
-        return ResponseEntity.ok(ApiResponse.success(Constants.USER_PROFILE_SUCCESS, user));
+        if (token != null) {
+            tokenService.revokeAllUserTokens(token);
+            return ResponseEntity.ok(ApiResponse.success("Logged out from all devices successfully"));
+        } else {
+            throw new AuthException(Constants.INVALID_TOKEN);
+        }
     }
 
-    /**
-     * Endpoint สำหรับขอรีเซ็ตรหัสผ่าน
-     * @param request คำขอที่มีชื่อผู้ใช้
-     * @return ข้อความยืนยันการส่งอีเมล
-     */
-    @PostMapping("/forgot-password")
-    public ResponseEntity<ApiResponse<Void>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
-        log.info("Password reset request for username: {}", request.getUsername());
+    @PostMapping("/force-logout")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Force logout a user", description = "Invalidate all sessions for a specific user")
+    public ResponseEntity<ApiResponse<Void>> forceLogout(@Valid @RequestBody ForceLogoutRequest request) {
+        log.info("Admin force logout request for user: {}", request.getUsername());
 
-        authService.initiatePasswordReset(request.getUsername());
+        tokenService.forceLogout(request.getUsername());
 
-        return ResponseEntity.ok(ApiResponse.success(Constants.PASSWORD_RESET_EMAIL_SENT));
-    }
-
-    /**
-     * Endpoint สำหรับรีเซ็ตรหัสผ่าน
-     * @param request คำขอที่มี token และรหัสผ่านใหม่
-     * @return ข้อความยืนยันการรีเซ็ตรหัสผ่าน
-     */
-    @PostMapping("/reset-password")
-    public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
-        log.info("Password reset execution request received");
-
-        authService.resetPassword(request.getToken(), request.getNewPassword());
-
-        return ResponseEntity.ok(ApiResponse.success(Constants.PASSWORD_RESET_SUCCESS));
+        return ResponseEntity.ok(ApiResponse.success("User has been forcefully logged out"));
     }
 }

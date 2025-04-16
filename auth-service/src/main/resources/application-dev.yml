@@ -1,0 +1,15 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ops?currentSchema=auth
+    username: ops
+    password: ops
+  redis:
+    host: localhost
+    port: 6379
+  kafka:
+    bootstrap-servers: localhost:9092
+
+logging:
+  level:
+    com.yipintsoi: DEBUG
+    org.springframework.security: DEBUG

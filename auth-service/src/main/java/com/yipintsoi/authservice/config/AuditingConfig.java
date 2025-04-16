@@ -7,7 +7,6 @@ import java.util.Optional;
 
 @Configuration
 public class AuditingConfig {
-
     @Bean
     public AuditorAware<String> auditorProvider() {
         // ใน production ใช้ security context ในการระบุ username จริง

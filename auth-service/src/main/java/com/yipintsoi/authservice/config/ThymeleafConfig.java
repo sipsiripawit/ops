@@ -9,10 +9,6 @@ import org.thymeleaf.templateresolver.ITemplateResolver;
 
 @Configuration
 public class ThymeleafConfig {
-
-    /**
-     * Template Resolver สำหรับอีเมลเทมเพลต
-     */
     @Bean
     @Description("Thymeleaf template resolver for emails")
     public ITemplateResolver emailTemplateResolver() {
@@ -26,9 +22,6 @@ public class ThymeleafConfig {
         return templateResolver;
     }
 
-    /**
-     * Template Engine สำหรับอีเมล
-     */
     @Bean
     @Description("Thymeleaf template engine with email template resolver")
     public SpringTemplateEngine emailTemplateEngine() {
