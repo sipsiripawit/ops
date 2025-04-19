@@ -2,8 +2,10 @@ server:
   port: 8086
 
 spring:
+  application:
+    name: user-service
   datasource:
-    url: jdbc:postgresql://postgres:5432/ops?currentSchema=user
+    url: jdbc:postgresql://localhost:5432/ops?currentSchema=user
     username: ops
     password: ops
     driver-class-name: org.postgresql.Driver
@@ -11,16 +13,41 @@ spring:
     hibernate:
       ddl-auto: none
     show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    schemas: user
+    locations: classpath:db/migration
+    baseline-on-migrate: true
 
-flyway:
-  enabled: true
-  schemas: user
-  locations: classpath:db/migration
+# Kafka configuration
+kafka:
+  bootstrap-servers: localhost:9092
+  consumer:
+    group-id: user-service-group
+    auto-offset-reset: earliest
+    key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+  producer:
+    key-serializer: org.apache.kafka.common.serialization.StringSerializer
+    value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
+# RabbitMQ configuration
+rabbitmq:
+  host: localhost
+  queue: user-service-queue
+
+# Logging
 logging:
   level:
     root: INFO
+    com.yipintsoi.userservice: DEBUG
+    org.springframework.web: INFO
+    org.springframework.security: INFO
 
+# Management endpoints
 management:
   endpoints:
     web:
@@ -29,21 +56,26 @@ management:
   endpoint:
     health:
       show-details: always
+      probes:
+        enabled: true
 
-resilience4j.circuitbreaker:
-  instances:
-    userServiceCircuitBreaker:
-      slidingWindowSize: 10
-      failureRateThreshold: 50
-      permittedNumberOfCallsInHalfOpenState: 3
+# Circuit Breaker
+resilience4j:
+  circuitbreaker:
+    instances:
+      authServiceClient:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        permittedNumberOfCallsInHalfOpenState: 3
+        waitDurationInOpenState: 5s
 
-# Kafka configuration (ถ้ามีการใช้งาน event-driven ใน User Service)
-kafka:
-  bootstrap-servers: localhost:9092
+# Application specific properties
+app:
+  topic:
+    auth-events: auth-events
+    user-events: user-events
 
-# RabbitMQ configuration (ถ้ามี)
-rabbitmq:
-  host: localhost
-  queue: user-service-queue
-
-# Redis configuration (สำหรับ caching หรือ pub/sub)
+# External services
+services:
+  auth-service:
+    url: http://localhost:8081

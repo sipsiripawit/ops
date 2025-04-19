@@ -9,4 +9,10 @@ public interface UserProfileService {
     void deleteUserProfile(Long id);
     UserProfileDTO getUserProfileById(Long id);
     List<UserProfileDTO> getAllUserProfiles();
+    
+    // เพิ่มเมธอดใหม่สำหรับการทำงานกับ Auth Service
+    boolean existsByAuthUserId(Integer authUserId);
+    UserProfileDTO getUserProfileByAuthUserId(Integer authUserId);
+    UserProfileDTO createUserProfileFromAuthUser(Integer authUserId, String username, String email);
+    void updateUserEmailByAuthUserId(Integer authUserId, String email);
 }
